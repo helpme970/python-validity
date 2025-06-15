@@ -861,7 +861,7 @@ class Sensor:
 
         return rc
 
-    def match_finger(self) -> typing.Tuple[int, int, bytes]:
+    def match_finger(self) -> typing.Optional[typing.Tuple[int, int, bytes]]:
         try:
             stg_id = 0  # match against any storage
             usr_id = 0  # match against any user
@@ -871,7 +871,8 @@ class Sensor:
 
             b = usb.wait_int()
             if b[0] != 3:
-                raise Exception('Finger not recognized: %s' % hexlify(b).decode())
+                logging.debug('Finger not recognized: %s' % hexlify(b).decode())
+                return None
 
             # get results
             rsp = tls.app(unhexlify('6000000000'))
@@ -880,7 +881,8 @@ class Sensor:
 
             (l, ), rsp = unpack('<H', rsp[:2]), rsp[2:]
             if l != len(rsp):
-                raise Exception('Response size does not match')
+                logging.debug('Response size does not match')
+                return None
 
             rsp = self.parse_dict(rsp)
 
@@ -888,28 +890,61 @@ class Sensor:
             usrid, = unpack('<L', usrid)
             subtype, = unpack('<H', subtype)
 
+
             return usrid, subtype, hsh
+        except Exception as e:
+            logging.debug('Error in match_finger: %s', str(e))
+            return None
         finally:
             # cleanup, ignore any errors
-            tls.app(unhexlify('6200000000'))
+            try:
+                tls.app(unhexlify('6200000000'))
+            except:
+                pass
 
     def identify(self, update_cb: typing.Callable[[Exception], None]):
+        last_error_time = 0
+        error_cooldown = 5  # seconds between error notifications
+        
         while True:
             try:
                 glow_start_scan()
-                self.capture(CaptureMode.IDENTIFY)
-                break
+                try:
+                    self.capture(CaptureMode.IDENTIFY)
+                    result = self.match_finger()
+                    if result is not None:
+                        return result
+                    # If we get here, the finger wasn't recognized
+                    current_time = time.time()
+                    if current_time - last_error_time > error_cooldown:
+                        update_cb(Exception('Finger not recognized, please try again'))
+                        last_error_time = current_time
+                except usb_core.USBTimeoutError as e:
+                    # Ignore timeouts, just continue scanning
+                    logging.debug('USB timeout during capture, continuing...')
+                    continue
+                except Exception as e:
+                    # Log other errors but continue scanning
+                    logging.debug(f'Error during capture: {str(e)}')
+                    current_time = time.time()
+                    if current_time - last_error_time > error_cooldown:
+                        update_cb(Exception('Scan error, please try again'))
+                        last_error_time = current_time
+                
+                # Small delay to prevent busy waiting
+                sleep(0.1)
+                
             except usb_core.USBError as e:
-                raise e
+                logging.error(f'USB error: {str(e)}')
+                raise
             except CancelledException as e:
+                logging.debug('Scan cancelled by user')
                 glow_end_scan()
-                raise e
+                raise
             except Exception as e:
-                # Capture failed, retry
+                logging.error(f'Unexpected error during identification: {str(e)}')
                 update_cb(e)
                 sleep(1)
-
-        return self.match_finger()
 
     def get_finger_blobs(self, usrid: int, subtype: int):
         usr = db.get_user(usrid)

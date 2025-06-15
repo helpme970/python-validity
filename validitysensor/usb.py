@@ -122,19 +122,31 @@ class Usb:
 
     def wait_int(self):
         self.cancel = False
+        retry_count = 0
+        max_retries = 10  # Maximum number of retries before giving up
 
-        while True:
+        while retry_count < max_retries:
             try:
-                resp = self.dev.read(131, 1024, timeout=100)
+                resp = self.dev.read(131, 1024, timeout=500)  # Increased timeout to 500ms
                 resp = bytes(resp)
                 self.trace('<int< %s' % hexlify(resp).decode())
                 return resp
             except USBError as e:
                 if e.errno == errno.ETIMEDOUT:
                     if self.cancel:
+                        self.trace('wait_int: Operation cancelled')
                         raise CancelledException()
-                else:
-                    raise e
+                    retry_count += 1
+                    self.trace(f'wait_int: Timeout ({retry_count}/{max_retries})')
+                    continue
+                self.trace(f'wait_int: USB error: {str(e)}')
+                raise
+            except Exception as e:
+                self.trace(f'wait_int: Unexpected error: {str(e)}')
+                raise
+        
+        self.trace('wait_int: Max retries reached')
+        raise USBError('Operation timed out after multiple retries', errno.ETIMEDOUT)
 
     def trace(self, s: str):
         if self.trace_enabled:
