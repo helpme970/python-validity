@@ -907,45 +907,68 @@ class Sensor:
         last_error_time = 0
         error_cooldown = 5  # seconds between error notifications
         
-        while True:
-            try:
-                glow_start_scan()
+        try:
+            while True:
                 try:
-                    self.capture(CaptureMode.IDENTIFY)
-                    result = self.match_finger()
-                    if result is not None:
-                        return result
-                    # If we get here, the finger wasn't recognized
-                    current_time = time.time()
-                    if current_time - last_error_time > error_cooldown:
-                        update_cb(Exception('Finger not recognized, please try again'))
-                        last_error_time = current_time
-                except usb_core.USBTimeoutError as e:
-                    # Ignore timeouts, just continue scanning
-                    logging.debug('USB timeout during capture, continuing...')
-                    continue
+                    glow_start_scan()
+                    try:
+                        self.capture(CaptureMode.IDENTIFY)
+                        result = self.match_finger()
+                        if result is not None:
+                            try:
+                                return result
+                            finally:
+                                # Ensure cleanup happens even if return raises an exception
+                                glow_end_scan()
+                        
+                        # If we get here, the finger wasn't recognized
+                        current_time = time.time()
+                        if current_time - last_error_time > error_cooldown:
+                            update_cb(Exception('Finger not recognized, please try again'))
+                            last_error_time = current_time
+                            
+                    except usb_core.USBTimeoutError as e:
+                        # Ignore timeouts, just continue scanning
+                        logging.debug('USB timeout during capture, continuing...')
+                        continue
+                    except Exception as e:
+                        # Log other errors but continue scanning
+                        logging.debug(f'Error during capture: {str(e)}')
+                        current_time = time.time()
+                        if current_time - last_error_time > error_cooldown:
+                            update_cb(Exception('Scan error, please try again'))
+                            last_error_time = current_time
+                    finally:
+                        # Always clean up after capture attempt
+                        try:
+                            glow_end_scan()
+                        except Exception as e:
+                            logging.debug(f'Error during scan cleanup: {str(e)}')
+                    
+                    # Small delay to prevent busy waiting
+                    sleep(0.1)
+                    
+                except usb_core.USBError as e:
+                    logging.error(f'USB error: {str(e)}')
+                    raise
+                except CancelledException as e:
+                    logging.debug('Scan cancelled by user')
+                    try:
+                        glow_end_scan()
+                    except Exception as e:
+                        logging.debug(f'Error during scan cleanup: {str(e)}')
+                    raise
                 except Exception as e:
-                    # Log other errors but continue scanning
-                    logging.debug(f'Error during capture: {str(e)}')
-                    current_time = time.time()
-                    if current_time - last_error_time > error_cooldown:
-                        update_cb(Exception('Scan error, please try again'))
-                        last_error_time = current_time
-                
-                # Small delay to prevent busy waiting
-                sleep(0.1)
-                
-            except usb_core.USBError as e:
-                logging.error(f'USB error: {str(e)}')
-                raise
-            except CancelledException as e:
-                logging.debug('Scan cancelled by user')
+                    logging.error(f'Unexpected error during identification: {str(e)}')
+                    update_cb(e)
+                    sleep(1)
+        except Exception as e:
+            # Final cleanup in case of any unhandled exceptions
+            try:
                 glow_end_scan()
-                raise
-            except Exception as e:
-                logging.error(f'Unexpected error during identification: {str(e)}')
-                update_cb(e)
-                sleep(1)
+            except:
+                pass
+            raise
 
     def get_finger_blobs(self, usrid: int, subtype: int):
         usr = db.get_user(usrid)
