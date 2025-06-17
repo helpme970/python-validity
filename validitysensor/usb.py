@@ -111,7 +111,7 @@ class Usb:
         try:
             resp = self.dev.read(130, 1024 * 1024, timeout=10000)
             resp = bytes(resp)
-            self.trace('<130< %d bytes', len(resp))
+            self.trace('<130< %d bytes' % len(resp))
             #self.trace('<130< %s' % hexlify(resp).decode())
             return resp
         except Exception as e:
