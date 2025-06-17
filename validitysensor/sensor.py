@@ -225,7 +225,7 @@ class Sensor:
     def open(self):
         self.device_info = identify_sensor()
 
-        logging.info('Opening sensor: %s' % self.device_info.name)
+        logging.info('Opening sensor: %s', self.device_info.name)
         self.type_info = SensorTypeInfo.get_by_type(self.device_info.type)
 
         if self.device_info.type == 0x199:
@@ -624,10 +624,10 @@ class Sensor:
 
         if start != b'\xff' * 0x44:
             if clean_slate[:0x44] == start:
-                logging.info('Calibration data already matches the data on the flash.')
+                logging.info('Calibration data already matches the data on the flash')
                 return
             else:
-                logging.info('Calibration flash already written. Erasing.')
+                logging.info('Calibration flash already written. Erasing')
                 erase_flash(6)
 
         write_flash_all(6, 0, clean_slate)
@@ -657,23 +657,23 @@ class Sensor:
         if os.path.isfile(calib_data_path):
             with open(calib_data_path, 'rb') as f:
                 self.calib_data = f.read()
-                logging.info('Calibration data loaded from a file.')
+                logging.info('Calibration data loaded from a file')
 
             if self.check_clean_slate():
                 return
             else:
-                logging.info('No calibration data on the flash. Calibrating...')
+                logging.info('No calibration data on the flash. Calibrating')
         else:
             self.calib_data = b''
-            logging.info('No calibration data was loaded. Calibrating...')
+            logging.info('No calibration data was loaded. Calibrating')
 
         for i in range(0, self.calibration_iterations):
-            logging.debug('Calibration iteration %d...' % i)
+            logging.debug('Calibration iteration %d', i)
             rsp = tls.cmd(self.build_cmd_02(CaptureMode.CALIBRATE))
             assert_status(rsp)
             self.process_calibration_results(self.average(usb.read_82()))
 
-        logging.debug('Requesting a blank image...')
+        logging.debug('Requesting a blank image')
 
         # Get the "clean slate" image to store on the flash for fine-grained after-capture adjustments
         rsp = tls.cmd(self.build_cmd_02(CaptureMode.CALIBRATE))
@@ -788,7 +788,7 @@ class Sensor:
             elif tag == 3:
                 tid = res[magic_len:magic_len + l]
             else:
-                logging.warning('Ignoring unknown tag %x' % tag)
+                logging.warning('Ignoring unknown tag %x', tag)
 
             res = res[magic_len + l:]
 
@@ -872,7 +872,7 @@ class Sensor:
 
             b = usb.wait_int()
             if b[0] != 3:
-                logging.debug('Finger not recognized: %s' % hexlify(b).decode())
+                logging.debug('Finger not recognized: %s', hexlify(b).decode())
                 return None
 
             # get results
@@ -894,7 +894,7 @@ class Sensor:
 
             return usrid, subtype, hsh
         except Exception as e:
-            logging.debug('Error in match_finger: %s', str(e))
+            logging.debug('Error in match_finger: %s', e)
             return None
         finally:
             # cleanup, ignore any errors
@@ -929,11 +929,11 @@ class Sensor:
                             
                     except usb_core.USBTimeoutError as e:
                         # Ignore timeouts, just continue scanning
-                        logging.debug('USB timeout during capture, continuing...')
+                        logging.debug('USB timeout during capture, continuing')
                         continue
                     except Exception as e:
                         # Log other errors but continue scanning
-                        logging.debug(f'Error during capture: {str(e)}')
+                        logging.debug('Error during capture: %s', e)
                         current_time = time.time()
                         if current_time - last_error_time > error_cooldown:
                             update_cb(Exception('Scan error, please try again'))
@@ -943,13 +943,13 @@ class Sensor:
                         try:
                             glow_end_scan()
                         except Exception as e:
-                            logging.debug(f'Error during scan cleanup: {str(e)}')
+                            logging.debug('Error during scan cleanup: %s', e)
                     
                     # Small delay to prevent busy waiting
                     sleep(0.1)
                     
                 except usb_core.USBError as e:
-                    logging.error(f'USB error: {str(e)}')
+                    logging.error('USB error: %s', e)
                     raise
                 except CancelledException as e:
                     logging.debug('Scan cancelled by user')
@@ -959,7 +959,7 @@ class Sensor:
                         logging.debug(f'Error during scan cleanup: {str(e)}')
                     raise
                 except Exception as e:
-                    logging.error(f'Unexpected error during identification: {str(e)}')
+                    logging.error('Unexpected error during identification: %s', e)
                     update_cb(e)
                     sleep(1)
         except Exception as e:

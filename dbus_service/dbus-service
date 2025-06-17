@@ -18,6 +18,7 @@ import dbus
 import dbus.mainloop.glib
 import dbus.service
 import yaml
+from validitysensor import PYTHON_VALIDITY_DATA_DIR
 from gi.repository import GLib
 from usb import core as usb_core
 
@@ -191,8 +192,7 @@ class Device(dbus.service.Object):
         return hexlify(tls.app(unhexlify(cmd))).decode()
 
 
-backoff_file = '/usr/share/python-validity/backoff'
-
+backoff_file = PYTHON_VALIDITY_DATA_DIR + 'backoff'
 
 # I don't know how to tell systemd to backoff in case of multiple instance of the same template service, help!
 def backoff():
