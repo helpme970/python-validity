@@ -1,5 +1,6 @@
 import atexit
 import logging
+import time
 
 from validitysensor.flash import read_tls_flash
 from validitysensor.init_db import init_db
@@ -26,6 +27,7 @@ def close():
 
 
 def open_common():
+    time.sleep(1)
     init_flash()
     usb.send_init()
     tls.parse_tls_flash(read_tls_flash())
