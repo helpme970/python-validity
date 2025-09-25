@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 
 import argparse
+import errno
 import logging
 import logging.handlers
 import os
@@ -27,7 +28,7 @@ from validitysensor.db import subtype_to_string, db, SidIdentity, User
 from validitysensor.sensor import sensor, RebootException
 from validitysensor.sid import sid_from_string
 from validitysensor.tls import tls
-from validitysensor.usb import usb
+from validitysensor.usb import usb, DeviceBusyException
 from validitysensor.fingerprint_constants import finger_ids
 
 dbus.mainloop.glib.DBusGMainLoop(set_as_default=True)
@@ -73,8 +74,24 @@ class Device(dbus.service.Object):
         tls.reset()
         try:
             init.open_common()
-        except:
-            init.open_common()
+        except DeviceBusyException as e:
+            logging.warning('Device busy during resume, will retry later: %s', str(e))
+            # Don't crash on resume if device is busy
+        except usb_core.USBError as e:
+            if e.errno == errno.EBUSY or 'busy' in str(e).lower():
+                logging.warning('USB device busy during resume: %s', str(e))
+            else:
+                # Try once more for other USB errors
+                try:
+                    init.open_common()
+                except:
+                    logging.error('Failed to resume after retry')
+        except Exception as e:
+            logging.warning('Resume failed, retrying: %s', str(e))
+            try:
+                init.open_common()
+            except:
+                logging.error('Resume retry also failed')
 
     @dbus.service.method(dbus_interface=INTERFACE_NAME, in_signature="s", out_signature="as")
     def ListEnrolledFingers(self, user):
@@ -273,6 +290,18 @@ def main():
     except RebootException:
         logging.debug('Initialization ended up in rebooting the sensor. Normal exit.')
         sys.exit(0)
+    except DeviceBusyException as e:
+        logging.warning('USB device is busy, likely being used by another service: %s', str(e))
+        logging.info('This is normal when open-fprintd is also running. Exiting gracefully.')
+        sys.exit(0)
+    except usb_core.USBError as e:
+        if e.errno == errno.EBUSY or 'busy' in str(e).lower():
+            logging.warning('USB device is busy: %s', str(e))
+            logging.info('This is normal when open-fprintd is also running. Exiting gracefully.')
+            sys.exit(0)
+        else:
+            logging.error('USB error during initialization: %s', str(e))
+            raise
 
     bus = dbus.SystemBus()
 
