@@ -26,6 +26,7 @@ from usb import core as usb_core
 from validitysensor import init
 from validitysensor.db import subtype_to_string, db, SidIdentity, User
 from validitysensor.sensor import sensor, RebootException
+from validitysensor.util import DatabaseFullException, DeviceStorageException
 from validitysensor.sid import sid_from_string
 from validitysensor.tls import tls
 from validitysensor.usb import usb, DeviceBusyException
@@ -174,6 +175,14 @@ class Device(dbus.service.Object):
             try:
                 sensor.enroll(usr, index, update_cb)
                 self.EnrollStatus('enroll-completed', True)
+            except DatabaseFullException as e:
+                logging.error(f"Database full during enrollment: {e}")
+                self.EnrollStatus('enroll-failed', True)
+                # Don't quit the loop for database full errors - user can clean up and retry
+            except DeviceStorageException as e:
+                logging.error(f"Device storage error during enrollment: {e}")
+                self.EnrollStatus('enroll-failed', True)
+                # Don't quit the loop for storage errors - might be temporary
             except usb_core.USBError as e:
                 logging.exception(e)
                 self.EnrollStatus('enroll-failed', True)

@@ -18,7 +18,7 @@ from .hw_tables import dev_info_lookup
 from .table_types import SensorTypeInfo, SensorCaptureProg
 from .tls import tls
 from .usb import usb, CancelledException
-from .util import assert_status, unhex
+from .util import assert_status, unhex, DatabaseFullException, DeviceStorageException
 
 # TODO: this should be specific to an individual device (system may have more than one sensor)
 calib_data_path = '/usr/share/python-validity/calib-data.bin'
@@ -809,20 +809,30 @@ class Sensor:
     def enroll(self, identity: SidIdentity, subtype: int,
                update_cb: typing.Callable[[typing.Any, typing.Optional[Exception]], None]):
         def do_create_finger(final_template: bytes, tid: bytes):
-            tinfo = self.make_finger_data(subtype, final_template, tid)
+            try:
+                tinfo = self.make_finger_data(subtype, final_template, tid)
 
-            usr = db.lookup_user(identity)
-            if usr is None:
-                usr = db.new_user(identity)
-            else:
-                usr = usr.dbid
+                usr = db.lookup_user(identity)
+                if usr is None:
+                    usr = db.new_user(identity)
+                else:
+                    usr = usr.dbid
 
-            recid = db.new_finger(usr, tinfo)
-            usb.wait_int()
+                recid = db.new_finger(usr, tinfo, subtype)
+                usb.wait_int()
 
-            glow_end_scan()
+                glow_end_scan()
 
-            return recid
+                return recid
+            except DatabaseFullException as e:
+                glow_end_scan()
+                raise DatabaseFullException(
+                    f"Cannot enroll fingerprint: {e}. "
+                    f"Try running the database cleanup utility to free up space."
+                )
+            except DeviceStorageException as e:
+                glow_end_scan()
+                raise DeviceStorageException(f"Device storage error during enrollment: {e}")
 
         key = 0
         template = b''
@@ -851,7 +861,15 @@ class Sensor:
                 self.enrollment_update_end()
 
         self.enrollment_update_end()  # done twice for some reason
-        return do_create_finger(template, tid)
+        
+        try:
+            return do_create_finger(template, tid)
+        except DatabaseFullException as e:
+            # Pass the exception up to the D-Bus service with clear error message
+            raise DatabaseFullException(str(e))
+        except DeviceStorageException as e:
+            # Pass the exception up to the D-Bus service with clear error message  
+            raise DeviceStorageException(str(e))
 
     def parse_dict(self, x: bytes):
         rc = {}
