@@ -40,7 +40,10 @@ class Config:
             'adaptive_polling': 'true',
             'adaptive_threshold': '5',
             'error_cooldown': '5.0',
-            'lockscreen_optimization': 'true'
+            'lockscreen_optimization': 'true',
+            'pause_on_timeout': 'false',
+            'pause_timeout': '30.0',
+            'input_detection_method': 'auto'
         }
         
         self.config['logging'] = {
@@ -109,3 +112,8 @@ LOCKSCREEN_OPTIMIZATION = config.get_bool('scanning', 'lockscreen_optimization',
 # Logging configuration
 LOG_LEVEL = config.get_str('logging', 'level', 'INFO')
 ADAPTIVE_DEBUG = config.get_bool('logging', 'adaptive_debug', False)
+
+# Pause/Resume configuration
+PAUSE_ON_TIMEOUT = config.get_bool('scanning', 'pause_on_timeout', False)
+PAUSE_TIMEOUT = config.get_float('scanning', 'pause_timeout', 30.0)
+INPUT_DETECTION_METHOD = config.get_str('scanning', 'input_detection_method', 'auto')
