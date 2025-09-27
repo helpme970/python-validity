@@ -922,8 +922,20 @@ class Sensor:
                 pass
 
     def identify(self, update_cb: typing.Callable[[Exception], None]):
+        from .config import (SCAN_BASE_INTERVAL, SCAN_MAX_INTERVAL, ADAPTIVE_POLLING_ENABLED, 
+                           ADAPTIVE_THRESHOLD, ERROR_COOLDOWN, ADAPTIVE_DEBUG, LOCKSCREEN_OPTIMIZATION)
+        from .activity_monitor import activity_monitor
+        
         last_error_time = 0
-        error_cooldown = 5  # seconds between error notifications
+        error_cooldown = ERROR_COOLDOWN
+        scan_interval = SCAN_BASE_INTERVAL
+        max_scan_interval = SCAN_MAX_INTERVAL
+        current_scan_interval = scan_interval
+        consecutive_failures = 0
+        
+        # Start activity monitoring if lockscreen optimization is enabled
+        if LOCKSCREEN_OPTIMIZATION:
+            activity_monitor.start_monitoring()
         
         try:
             while True:
@@ -941,6 +953,24 @@ class Sensor:
                         
                         # If we get here, the finger wasn't recognized
                         current_time = time.time()
+                        consecutive_failures += 1
+                        
+                        # Adaptive polling: increase interval after consecutive failures
+                        if ADAPTIVE_POLLING_ENABLED and consecutive_failures > ADAPTIVE_THRESHOLD:
+                            base_multiplier = consecutive_failures / ADAPTIVE_THRESHOLD
+                            
+                            # Use activity monitoring to adjust polling strategy
+                            if LOCKSCREEN_OPTIMIZATION and not activity_monitor.should_use_aggressive_polling():
+                                # User hasn't been active recently, use longer intervals
+                                current_scan_interval = min(max_scan_interval * 2, scan_interval * base_multiplier * 2)
+                                if ADAPTIVE_DEBUG:
+                                    logging.debug(f'User inactive - extended polling interval to {current_scan_interval:.1f}s')
+                            else:
+                                # Normal adaptive polling
+                                current_scan_interval = min(max_scan_interval, scan_interval * base_multiplier)
+                                if ADAPTIVE_DEBUG:
+                                    logging.debug(f'Adaptive polling: interval {current_scan_interval:.1f}s after {consecutive_failures} failures')
+                        
                         if current_time - last_error_time > error_cooldown:
                             update_cb(Exception('Finger not recognized, please try again'))
                             last_error_time = current_time
@@ -948,10 +978,12 @@ class Sensor:
                     except usb_core.USBTimeoutError as e:
                         # Ignore timeouts, just continue scanning
                         logging.debug('USB timeout during capture, continuing')
+                        consecutive_failures += 1
                         continue
                     except Exception as e:
                         # Log other errors but continue scanning
                         logging.debug('Error during capture: %s', e)
+                        consecutive_failures += 1
                         current_time = time.time()
                         if current_time - last_error_time > error_cooldown:
                             update_cb(Exception('Scan error, please try again'))
@@ -963,8 +995,8 @@ class Sensor:
                         except Exception as e:
                             logging.debug('Error during scan cleanup: %s', e)
                     
-                    # Small delay to prevent busy waiting
-                    sleep(0.1)
+                    # Use adaptive interval to prevent excessive polling
+                    sleep(current_scan_interval)
                     
                 except usb_core.USBError as e:
                     logging.error('USB error: %s', e)
@@ -979,6 +1011,9 @@ class Sensor:
                 except Exception as e:
                     logging.error('Unexpected error during identification: %s', e)
                     update_cb(e)
+                    # Reset adaptive polling on unexpected errors
+                    current_scan_interval = scan_interval
+                    consecutive_failures = 0
                     sleep(1)
         except Exception as e:
             # Final cleanup in case of any unhandled exceptions
@@ -987,6 +1022,10 @@ class Sensor:
             except:
                 pass
             raise
+        finally:
+            # Stop activity monitoring when identification ends
+            if LOCKSCREEN_OPTIMIZATION:
+                activity_monitor.stop_monitoring()
 
     def get_finger_blobs(self, usrid: int, subtype: int):
         usr = db.get_user(usrid)
