@@ -35,20 +35,13 @@ class Config:
     def _load_defaults(self):
         """Load default configuration values."""
         self.config['scanning'] = {
-            'base_interval': '0.5',
-            'max_interval': '3.0',
-            'adaptive_polling': 'true',
-            'adaptive_threshold': '5',
-            'error_cooldown': '5.0',
-            'lockscreen_optimization': 'true',
-            'pause_on_timeout': 'false',
-            'pause_timeout': '30.0',
+            'scan_timeout': '10.0',
+            'poll_interval': '0.5',
             'input_detection_method': 'auto'
         }
         
         self.config['logging'] = {
-            'level': 'INFO',
-            'adaptive_debug': 'false'
+            'level': 'INFO'
         }
     
     def _load_config(self):
@@ -102,18 +95,9 @@ class Config:
 config = Config()
 
 # Scanning configuration
-SCAN_BASE_INTERVAL = config.get_float('scanning', 'base_interval', 0.5)
-SCAN_MAX_INTERVAL = config.get_float('scanning', 'max_interval', 3.0)
-ADAPTIVE_POLLING_ENABLED = config.get_bool('scanning', 'adaptive_polling', True)
-ADAPTIVE_THRESHOLD = config.get_int('scanning', 'adaptive_threshold', 5)
-ERROR_COOLDOWN = config.get_float('scanning', 'error_cooldown', 5.0)
-LOCKSCREEN_OPTIMIZATION = config.get_bool('scanning', 'lockscreen_optimization', True)
+SCAN_TIMEOUT = config.get_float('scanning', 'scan_timeout', 5.0)
+SCAN_POLL_INTERVAL = config.get_float('scanning', 'poll_interval', 0.5)
+INPUT_DETECTION_METHOD = config.get_str('scanning', 'input_detection_method', 'auto')
 
 # Logging configuration
 LOG_LEVEL = config.get_str('logging', 'level', 'INFO')
-ADAPTIVE_DEBUG = config.get_bool('logging', 'adaptive_debug', False)
-
-# Pause/Resume configuration
-PAUSE_ON_TIMEOUT = config.get_bool('scanning', 'pause_on_timeout', False)
-PAUSE_TIMEOUT = config.get_float('scanning', 'pause_timeout', 30.0)
-INPUT_DETECTION_METHOD = config.get_str('scanning', 'input_detection_method', 'auto')
