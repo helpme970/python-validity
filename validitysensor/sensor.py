@@ -922,14 +922,16 @@ class Sensor:
                 pass
 
     def identify(self, update_cb: typing.Callable[[Exception], None]):
-        from .config import SCAN_TIMEOUT, SCAN_POLL_INTERVAL
+        from .config import SCAN_TIMEOUT, SCAN_POLL_INTERVAL, MAX_ATTEMPTS
         from .input_watcher import create_input_watcher
         
         scan_timeout = SCAN_TIMEOUT
         poll_interval = SCAN_POLL_INTERVAL
+        max_attempts = MAX_ATTEMPTS
         start_time = time.time()
         last_error_time = 0
         error_cooldown = 5.0  # Fixed cooldown for error messages
+        timeout_count = 0  # Track number of timeouts
         
         # Create input watcher for keyboard detection
         input_watcher = create_input_watcher()
@@ -937,11 +939,12 @@ class Sensor:
         
         def on_input_detected():
             """Callback when keyboard input is detected - restart the timeout."""
-            nonlocal start_time, scan_active
+            nonlocal start_time, scan_active, timeout_count
             if not scan_active:
                 logging.info('Keyboard input detected - restarting fingerprint detection')
                 start_time = time.time()
                 scan_active = True
+                # Don't reset timeout_count - keyboard input doesn't give a new attempt
         
         input_watcher.set_resume_callback(on_input_detected)
         input_watcher.start_watching()
@@ -951,9 +954,19 @@ class Sensor:
                 # Check if timeout has been reached
                 elapsed_time = time.time() - start_time
                 if elapsed_time >= scan_timeout and scan_active:
-                    logging.info(f'Fingerprint detection timeout after {scan_timeout}s - pausing until keyboard input')
+                    timeout_count += 1
+                    logging.info(f'Fingerprint detection timeout #{timeout_count} after {scan_timeout}s')
+                    
+                    # Check if we've exceeded max attempts
+                    if timeout_count >= max_attempts:
+                        logging.info(f'Maximum attempts ({max_attempts}) reached - canceling fingerprint detection')
+                        # Cancel and raise exception to fall back to password
+                        raise CancelledException()
+                    
+                    # Still have attempts left, pause and wait for keyboard input
                     scan_active = False
-                    update_cb(Exception('Fingerprint detection paused - press any key to resume'))
+                    attempts_left = max_attempts - timeout_count
+                    update_cb(Exception(f'Fingerprint timeout (attempt {timeout_count}/{max_attempts}) - press any key to retry'))
                     # Continue loop but don't scan
                     sleep(1)
                     continue
@@ -976,23 +989,17 @@ class Sensor:
                                 glow_end_scan()
                         
                         # If we get here, the finger wasn't recognized
-                        current_time = time.time()
-                        
-                        if current_time - last_error_time > error_cooldown:
-                            update_cb(Exception('Finger not recognized, please try again'))
-                            last_error_time = current_time
+                        # Don't send retry messages on every failed scan - only on timeout
+                        # This prevents D-Bus message spam
                             
                     except usb_core.USBTimeoutError as e:
                         # Ignore timeouts, just continue scanning
                         logging.debug('USB timeout during capture, continuing')
                         continue
                     except Exception as e:
-                        # Log other errors but continue scanning
+                        # Log other errors but continue scanning silently
+                        # Don't spam D-Bus with retry messages
                         logging.debug('Error during capture: %s', e)
-                        current_time = time.time()
-                        if current_time - last_error_time > error_cooldown:
-                            update_cb(Exception('Scan error, please try again'))
-                            last_error_time = current_time
                     finally:
                         # Always clean up after capture attempt
                         try:

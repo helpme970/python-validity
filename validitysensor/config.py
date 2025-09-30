@@ -35,8 +35,9 @@ class Config:
     def _load_defaults(self):
         """Load default configuration values."""
         self.config['scanning'] = {
-            'scan_timeout': '10.0',
+            'scan_timeout': '5.0',
             'poll_interval': '0.5',
+            'max_attempts': '1',
             'input_detection_method': 'auto'
         }
         
@@ -97,6 +98,7 @@ config = Config()
 # Scanning configuration
 SCAN_TIMEOUT = config.get_float('scanning', 'scan_timeout', 5.0)
 SCAN_POLL_INTERVAL = config.get_float('scanning', 'poll_interval', 0.5)
+MAX_ATTEMPTS = config.get_int('scanning', 'max_attempts', 1)
 INPUT_DETECTION_METHOD = config.get_str('scanning', 'input_detection_method', 'auto')
 
 # Logging configuration

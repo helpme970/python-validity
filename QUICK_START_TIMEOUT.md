@@ -3,15 +3,16 @@
 ## What Changed?
 
 The fingerprint scanner now uses a **5-second timeout** instead of adaptive polling:
-- ✅ Scans for 5 seconds
-- ⏸️ Pauses after timeout
-- ⌨️ Restarts automatically when you press any key
+- ✅ Scans for 5 seconds (~10 scan attempts at 0.5s intervals)
+- ⏹️ Cancels to password after timeout
+- ⌨️ No manual retry needed - just use password
 
 ## Quick Setup
 
 ### 1. Default Configuration (Recommended)
 No configuration needed! The defaults work for most users:
 - 5-second timeout
+- Automatic fallback to password after timeout
 - 0.5-second polling interval
 - Automatic keyboard detection
 
@@ -21,11 +22,16 @@ Create or edit: `/etc/python-validity/config.ini`
 
 ```ini
 [scanning]
-# How long to scan before pausing (seconds)
+# How long to scan before canceling (seconds)
+# At 0.5s intervals, 5.0s = ~10 scan attempts
 scan_timeout = 5.0
 
 # How often to check for fingerprint (seconds)
 poll_interval = 0.5
+
+# Maximum timeout attempts before canceling (default: 1 = cancel on first timeout)
+# Set to 3 if you want multiple retry opportunities
+max_attempts = 1
 
 [logging]
 # Set to DEBUG to see detailed logs
@@ -48,37 +54,44 @@ sudo systemctl restart python3-validity
 
 ### Sudo Commands
 1. Run `sudo command`
-2. Fingerprint detection starts (10 seconds)
+2. Fingerprint detection starts (5 seconds = ~10 scan attempts)
 3. Either:
-   - Use fingerprint within 10 seconds, OR
-   - Start typing password (detection pauses)
-4. Next sudo command restarts detection
+   - Use fingerprint within 5 seconds, OR
+   - Wait for timeout → automatic password fallback
+4. Type password to authenticate
 
-### Multiple Attempts
-1. First try: 10 seconds to use fingerprint
-2. Timeout: Detection pauses
-3. Press any key: Detection restarts for another 10 seconds
+### Scan Attempts Explained
+- **5-second timeout** = **~10 individual scan attempts** (at 0.5s intervals)
+- Each scan attempt checks if your finger is on the sensor
+- After 10 failed scans (5 seconds), detection cancels
+- You get multiple chances within the 5-second window
+- After timeout: just type your password
 
 ## Customization Examples
 
-### Longer Timeout (Patient Users)
+### Longer Timeout (More Scan Attempts)
 ```ini
 [scanning]
-scan_timeout = 15.0
+scan_timeout = 10.0  # 10s = ~20 scan attempts
 ```
 
-### Shorter Timeout (Battery Saving)
+### Shorter Timeout (Quick Fallback)
 ```ini
 [scanning]
-scan_timeout = 5.0
-poll_interval = 1.0
+scan_timeout = 3.0  # 3s = ~6 scan attempts
 ```
 
-### Faster Response
+### Faster Scanning (More Responsive)
 ```ini
 [scanning]
-scan_timeout = 10.0
-poll_interval = 0.3
+poll_interval = 0.3  # Scan every 0.3s instead of 0.5s
+```
+
+### Allow Manual Retries (Multiple Timeout Windows)
+```ini
+[scanning]
+max_attempts = 3  # Allow 3 timeout windows before canceling
+# Total time: 5s × 3 = 15 seconds maximum
 ```
 
 ## Troubleshooting
