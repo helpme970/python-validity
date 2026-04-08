@@ -21,6 +21,9 @@ Table of Contents
       * [DBus service](#dbus-service)
       * [Debugging](#debugging)
 
+## Building
+execute `dpkg-buildpackage -us -uc` in the main source folder
+
 ## Setting up
 
 On Ubuntu system:
@@ -136,6 +139,9 @@ user_to_sid:
     "someotheruser": "S-1-5-21-1234567890-1234567890-1234567890-1003"
 ```
 Note the indentation; each entry has to be preceded by at least one space.
+
+Restart the `python3-validity` daemon using `$ sudo systemctl restart python3-validity.service`.
+Your fingerprints registered in Windows can now be used for authentication.
 
 ## Playground
 
