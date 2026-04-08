@@ -74,7 +74,7 @@ class Device(dbus.service.Object):
         logging.debug('In Resume')
         tls.reset()
         try:
-            init.open_common()
+            init.open()
         except DeviceBusyException as e:
             logging.warning('Device busy during resume, will retry later: %s', str(e))
             # Don't crash on resume if device is busy
