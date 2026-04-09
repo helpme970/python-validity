@@ -73,7 +73,7 @@ def parse_identity(b: bytes):
         l, = unpack('<L', l)
         return sid_from_bytes(b[:l])
 
-    raise Exception('Don' 't know how to handle identity type %d' % t)
+    raise Exception('Don\'t know how to handle identity type %d' % t)
 
 
 def parse_user(rsp: bytes):
