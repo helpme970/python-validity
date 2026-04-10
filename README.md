@@ -22,7 +22,11 @@ Table of Contents
       * [Debugging](#debugging)
 
 ## Building
-execute `dpkg-buildpackage -us -uc` in the main source folder
+execute `sudo dpkg-buildpackage -us -uc` in the main source folder
+
+## Issues / TODO
+ * Does not unlock kyring
+ * warning when building
 
 ## Setting up
 
