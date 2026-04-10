@@ -1,6 +1,8 @@
 # python-validity
 Validity fingerprint sensor driver.
 
+This is the continuation of the original python-validity by uunicorn.
+
 Table of Contents
 =================
 
